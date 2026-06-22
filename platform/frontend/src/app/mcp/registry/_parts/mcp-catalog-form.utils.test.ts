@@ -1,6 +1,7 @@
 import type { McpCatalogFormValues } from "./mcp-catalog-form.types";
 import {
   buildCloneFormValues,
+  parseArgumentsString,
   transformCatalogItemToFormValues,
   transformExternalCatalogToFormValues,
   transformFormToApiData,
@@ -1011,5 +1012,66 @@ describe("buildCloneFormValues", () => {
     } as never);
 
     expect(values.oauthConfig?.client_secret).toBe("keep-me");
+  });
+});
+
+
+
+describe("parseArgumentsString", () => {
+  it("parses a JSON array of strings", () => {
+    const result = parseArgumentsString('["--port", "8080", "--verbose"]');
+    expect(result).toEqual(["--port", "8080", "--verbose"]);
+  });
+
+  it("parses a JSON array with a single string", () => {
+    const result = parseArgumentsString('["server.js"]');
+    expect(result).toEqual(["server.js"]);
+  });
+
+  it("parses newline-separated arguments (existing behavior)", () => {
+    const result = parseArgumentsString("--port\n8080\n--verbose");
+    expect(result).toEqual(["--port", "8080", "--verbose"]);
+  });
+
+  it("handles empty string input", () => {
+    const result = parseArgumentsString("");
+    expect(result).toEqual([]);
+  });
+
+  it("handles undefined input", () => {
+    const result = parseArgumentsString(undefined);
+    expect(result).toEqual([]);
+  });
+
+  it("handles whitespace-only input", () => {
+    const result = parseArgumentsString("   \n  \n  ");
+    expect(result).toEqual([]);
+  });
+
+  it("falls back to newline parsing for malformed JSON that starts with [", () => {
+    const result = parseArgumentsString("[invalid json here]");
+    expect(result).toEqual(["[invalid", "json", "here]"]);
+  });
+
+  it("falls back to newline parsing for JSON array with non-string elements", () => {
+    // A JSON array with numbers should fall through to newline split
+    const result = parseArgumentsString('[1, 2, 3]');
+    // Since this is valid JSON but not strings, it falls back
+    expect(result).toEqual(["[1,", "2,", "3]"]);
+  });
+
+  it("handles JSON array with leading/trailing whitespace", () => {
+    const result = parseArgumentsString('  ["--port", "8080"]  ');
+    expect(result).toEqual(["--port", "8080"]);
+  });
+
+  it("trims newline-separated arguments", () => {
+    const result = parseArgumentsString("  --port \n  8080  ");
+    expect(result).toEqual(["--port", "8080"]);
+  });
+
+  it("filters out empty lines in newline-separated input", () => {
+    const result = parseArgumentsString("--port\n\n\n8080");
+    expect(result).toEqual(["--port", "8080"]);
   });
 });

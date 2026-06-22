@@ -34,13 +34,8 @@ export function transformFormToApiData(
 
   // Handle local configuration
   if (values.serverType === "local" && values.localConfig) {
-    // Parse arguments string into array
-    const argumentsArray = values.localConfig.arguments
-      ? values.localConfig.arguments
-          .split("\n")
-          .map((arg) => arg.trim())
-          .filter((arg) => arg.length > 0)
-      : [];
+    // Parse arguments string into array (supports both JSON array and newline-separated)
+    const argumentsArray = parseArgumentsString(values.localConfig.arguments);
 
     data.localConfig = {
       command: values.localConfig.command || undefined,
@@ -978,4 +973,50 @@ export function stripEnvVarQuotes(value: string): string {
   }
 
   return value;
+}
+
+/**
+ * Parses an arguments string that may be either:
+ * - A JSON array of strings (e.g. `["--port", "8080"]`)
+ * - Newline-separated arguments (existing behavior, e.g. `--port\n8080`)
+ *
+ * JSON detection is triggered when the trimmed input starts with `[`.
+ * If the JSON parse fails, it falls back to newline splitting.
+ *
+ * @param input - The raw arguments string from the form textarea
+ * @returns An array of argument strings
+ *
+ * @example
+ * parseArgumentsString('["--port", "8080"]') // returns ['--port', '8080']
+ * parseArgumentsString('--port\n8080')        // returns ['--port', '8080']
+ * parseArgumentsString('')                     // returns []
+ */
+export function parseArgumentsString(input: string | undefined): string[] {
+  if (!input) {
+    return [];
+  }
+
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  // If the input starts with '[', try to parse it as a JSON array
+  if (trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+        return parsed;
+      }
+      // If JSON is valid but not an array of strings, fall through to newline split
+    } catch {
+      // Invalid JSON — fall through to newline split
+    }
+  }
+
+  // Fall back to newline-separated parsing (existing behavior)
+  return input
+    .split("\n")
+    .map((arg) => arg.trim())
+    .filter((arg) => arg.length > 0);
 }
